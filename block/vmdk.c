@@ -1744,11 +1744,13 @@ static int vmdk_create(const char *filename, QEMUOptionParameter *options,
             fmt = options->value.s;
         } else if (!strcmp(options->name, BLOCK_OPT_ZEROED_GRAIN)) {
             zeroed_grain |= options->value.n;
+        } else if (!strcmp(options->name, BLOCK_OPT_SCSI)) {
+            flags |= options->value.n ? BLOCK_FLAG_SCSI: 0;
         }
         options++;
     }
     if (!adapter_type) {
-        adapter_type = "ide";
+        adapter_type = flags & BLOCK_FLAG_SCSI ? "lsilogic" : "ide";
     } else if (strcmp(adapter_type, "ide") &&
                strcmp(adapter_type, "buslogic") &&
                strcmp(adapter_type, "lsilogic") &&
@@ -2095,6 +2097,11 @@ static QEMUOptionParameter vmdk_create_options[] = {
         .name = BLOCK_OPT_ZEROED_GRAIN,
         .type = OPT_FLAG,
         .help = "Enable efficient zero writes using the zeroed-grain GTE feature"
+    },
+    {
+        .name = BLOCK_OPT_SCSI,
+        .type = OPT_FLAG,
+        .help = "SCSI image"
     },
     { NULL }
 };
