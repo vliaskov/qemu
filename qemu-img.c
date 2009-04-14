@@ -1583,6 +1583,13 @@ static int img_convert(int argc, char **argv)
         }
     }
 
+    if (qemu_opt_get_bool(opts, BLOCK_OPT_SCSI, false)
+        && strcmp(drv->format_name, "vmdk")) {
+        error_report("SCSI devices not supported for this file format");
+        ret = -1;
+        goto out;
+    }
+
     if (!skip_create) {
         /* Create the new image */
         ret = bdrv_create(drv, out_filename, opts, &local_err);
