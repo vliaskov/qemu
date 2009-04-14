@@ -106,6 +106,7 @@ static uint32_t mpcore_timer_read(mpcore_timer_state *s, int offset)
     default:
         return 0;
     }
+    return 0;
 }
 
 static void mpcore_timer_write(mpcore_timer_state *s, int offset,

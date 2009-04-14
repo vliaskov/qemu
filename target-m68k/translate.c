@@ -436,6 +436,7 @@ static inline int opsize_bytes(int opsize)
         qemu_assert(0, "bad operand size");
         return 0;
     }
+    return 0;
 }
 
 /* Assign value to a register.  If the width is less than the register width
