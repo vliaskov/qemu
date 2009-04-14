@@ -3902,7 +3902,7 @@ int bdrv_img_create(const char *filename, const char *fmt,
                     char *options, uint64_t img_size, int flags)
 {
     QEMUOptionParameter *param = NULL, *create_options = NULL;
-    QEMUOptionParameter *backing_fmt, *backing_file, *size;
+    QEMUOptionParameter *backing_fmt, *backing_file, *size, *scsi;
     BlockDriverState *bs = NULL;
     BlockDriver *drv, *proto_drv;
     BlockDriver *backing_drv = NULL;
@@ -4017,6 +4017,9 @@ int bdrv_img_create(const char *filename, const char *fmt,
 
     printf("Formatting '%s', fmt=%s ", filename, fmt);
     print_option_parameters(param);
+    scsi = get_option_parameter(param, BLOCK_OPT_SCSI);
+    if (scsi && scsi->value.n)
+        printf(", SCSI");
     puts("");
 
     ret = bdrv_create(drv, filename, param);

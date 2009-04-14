@@ -1432,7 +1432,7 @@ static int vmdk_create(const char *filename, QEMUOptionParameter *options)
         "ddb.geometry.cylinders = \"%" PRId64 "\"\n"
         "ddb.geometry.heads = \"16\"\n"
         "ddb.geometry.sectors = \"63\"\n"
-        "ddb.adapterType = \"ide\"\n";
+        "ddb.adapterType = \"%s\"\n";
 
     if (filename_decompose(filename, path, prefix, postfix, PATH_MAX)) {
         return -EINVAL;
@@ -1447,6 +1447,8 @@ static int vmdk_create(const char *filename, QEMUOptionParameter *options)
             flags |= options->value.n ? BLOCK_FLAG_COMPAT6 : 0;
         } else if (!strcmp(options->name, BLOCK_OPT_SUBFMT)) {
             fmt = options->value.s;
+        } else if (!strcmp(options->name, BLOCK_OPT_SCSI)) {
+            flags |= options->value.n ? BLOCK_FLAG_SCSI: 0;
         }
         options++;
     }
@@ -1537,7 +1539,8 @@ static int vmdk_create(const char *filename, QEMUOptionParameter *options)
             parent_desc_line,
             ext_desc_lines,
             (flags & BLOCK_FLAG_COMPAT6 ? 6 : 4),
-            total_size / (int64_t)(63 * 16 * 512));
+            total_size / (int64_t)(63 * 16 * 512),
+            flags & BLOCK_FLAG_SCSI ? "lsilogic" : "ide");
     if (split || flat) {
         fd = qemu_open(filename,
                        O_WRONLY | O_CREAT | O_TRUNC | O_BINARY | O_LARGEFILE,
@@ -1637,6 +1640,11 @@ static QEMUOptionParameter vmdk_create_options[] = {
         .help =
             "VMDK flat extent format, can be one of "
             "{monolithicSparse (default) | monolithicFlat | twoGbMaxExtentSparse | twoGbMaxExtentFlat | streamOptimized} "
+    },
+    {
+        .name = BLOCK_OPT_SCSI,
+        .type = OPT_FLAG,
+        .help = "SCSI image"
     },
     { NULL }
 };
