@@ -2562,6 +2562,8 @@ struct target_ucred {
     uint32_t gid;
 };
 
+#include "ioctls_alsa_structs.h"
+
 #endif
 
 typedef int32_t target_timer_t;
