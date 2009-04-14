@@ -2336,3 +2336,5 @@ struct target_rlimit64 {
     uint64_t rlim_cur;
     uint64_t rlim_max;
 };
+
+#include "ioctls_alsa_structs.h"
