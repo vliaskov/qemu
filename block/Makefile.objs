@@ -24,6 +24,7 @@ block-obj-y += accounting.o
 common-obj-y += stream.o
 common-obj-y += commit.o
 common-obj-y += backup.o
+common-obj-y += dictzip.o
 
 iscsi.o-cflags     := $(LIBISCSI_CFLAGS)
 iscsi.o-libs       := $(LIBISCSI_LIBS)
