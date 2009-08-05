@@ -18,3 +18,4 @@ endif
 common-obj-y += stream.o
 common-obj-y += commit.o
 common-obj-y += mirror.o
+common-obj-y += dictzip.o
