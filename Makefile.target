@@ -33,6 +33,10 @@ endif
 PROGS=$(QEMU_PROG)
 STPFILES=
 
+ifdef CONFIG_LINUX_USER
+PROGS+=$(QEMU_PROG)-binfmt
+endif
+
 ifndef CONFIG_HAIKU
 LIBS+=-lm
 endif
@@ -138,6 +142,8 @@ $(obj-y) $(obj-$(TARGET_BASE_ARCH)-y): $(GENERATED_HEADERS)
 obj-y += $(addprefix ../libuser/, $(user-obj-y))
 obj-y += $(addprefix ../libdis-user/, $(libdis-y))
 obj-y += $(libobj-y)
+
+obj-binfmt-y += binfmt.o
 
 endif #CONFIG_LINUX_USER
 
@@ -416,6 +422,8 @@ obj-$(CONFIG_GDBSTUB_XML) += gdbstub-xml.o
 $(QEMU_PROG): $(obj-y) $(obj-$(TARGET_BASE_ARCH)-y)
 	$(call LINK,$^)
 
+$(QEMU_PROG)-binfmt: $(obj-binfmt-y)
+	$(call LINK,$^)
 
 gdbstub-xml.c: $(TARGET_XML_FILES) $(SRC_PATH)/scripts/feature_to_c.sh
 	$(call quiet-command,rm -f $@ && $(SHELL) $(SRC_PATH)/scripts/feature_to_c.sh $@ $(TARGET_XML_FILES),"  GEN   $(TARGET_DIR)$@")
