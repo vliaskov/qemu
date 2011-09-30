@@ -34,6 +34,10 @@ PROGS+=$(QEMU_PROGW)
 endif
 STPFILES=
 
+ifdef CONFIG_LINUX_USER
+PROGS+=$(QEMU_PROG)-binfmt
+endif
+
 ifndef CONFIG_HAIKU
 LIBS+=-lm
 endif
@@ -98,6 +102,8 @@ QEMU_CFLAGS+=-I$(SRC_PATH)/linux-user/$(TARGET_ABI_DIR) -I$(SRC_PATH)/linux-user
 obj-y += linux-user/
 obj-y += gdbstub.o thunk.o user-exec.o $(oslib-obj-y)
 
+obj-binfmt-y += linux-user/
+
 endif #CONFIG_LINUX_USER
 
 #########################################################
@@ -155,6 +161,9 @@ GENERATED_HEADERS += hmp-commands.h qmp-commands-old.h
 endif # CONFIG_SOFTMMU
 
 nested-vars += obj-y
+ifdef CONFIG_LINUX_USER
+nested-vars += obj-binfmt-y
+endif
 
 # This resolves all nested paths, so it must come last
 include $(SRC_PATH)/Makefile.objs
@@ -182,6 +191,9 @@ else
 $(QEMU_PROG): $(all-obj-y)
 	$(call LINK,$^)
 endif
+
+$(QEMU_PROG)-binfmt: $(obj-binfmt-y)
+	$(call LINK,$^)
 
 gdbstub-xml.c: $(TARGET_XML_FILES) $(SRC_PATH)/scripts/feature_to_c.sh
 	$(call quiet-command,rm -f $@ && $(SHELL) $(SRC_PATH)/scripts/feature_to_c.sh $@ $(TARGET_XML_FILES),"  GEN   $(TARGET_DIR)$@")
