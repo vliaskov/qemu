@@ -26,6 +26,8 @@
 #define P_L2_LEVELS \
     (((TARGET_PHYS_ADDR_SPACE_BITS - TARGET_PAGE_BITS - 1) / L2_BITS) + 1)
 
+extern int use_stopflag;
+
 /* translate-all.c */
 void tb_invalidate_phys_page_fast(tb_page_addr_t start, int len);
 void cpu_unlink_tb(CPUArchState *env);
