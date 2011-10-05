@@ -130,6 +130,8 @@ DEFINE_TLS(CPUArchState *,cpu_single_env);
    1 = Precise instruction counting.
    2 = Adaptive rate instruction counting.  */
 int use_icount = 0;
+/* 1 to do cpu_exit by inline flag check rather than tb link breaking */
+int use_stopflag = 1;
 
 typedef struct PageDesc {
     /* list of TBs intersecting this ram page */
@@ -1708,7 +1710,13 @@ static void tcg_handle_interrupt(CPUArchState *env, int mask)
             cpu_abort(env, "Raised interrupt while not in I/O function");
         }
     } else {
-        cpu_unlink_tb(env);
+        // XXX just call cpu_exit ?
+        if (use_stopflag) {
+            // XXX is this OK?
+            env->exit_request = 1;
+        } else {
+            cpu_unlink_tb(env);
+        }
     }
 }
 
@@ -1731,7 +1739,9 @@ void cpu_reset_interrupt(CPUArchState *env, int mask)
 void cpu_exit(CPUArchState *env)
 {
     env->exit_request = 1;
-    cpu_unlink_tb(env);
+    if (!use_stopflag) {
+        cpu_unlink_tb(env);
+    }
 }
 
 void cpu_abort(CPUArchState *env, const char *fmt, ...)

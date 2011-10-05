@@ -1196,6 +1196,15 @@ STEXI
 Disable HPET support.
 ETEXI
 
+DEF("no-stopflag", 0, QEMU_OPTION_no_stopflag,
+    "-no-stopflag   use old behaviour, not inline stopflag checks\n", QEMU_ARCH_ALL)
+STEXI
+@item -no-stopflag
+@findex -no-stopflag
+Implement cpu-exit by the old tb link breaking method rather than inline checks
+(this is slightly faster but racy!)
+ETEXI
+
 DEF("acpitable", HAS_ARG, QEMU_OPTION_acpitable,
     "-acpitable [sig=str][,rev=n][,oem_id=str][,oem_table_id=str][,oem_rev=n][,asl_compiler_id=str][,asl_compiler_rev=n][,{data|file}=file1[:file2]...]\n"
     "                ACPI table description\n", QEMU_ARCH_I386)

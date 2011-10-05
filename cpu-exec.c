@@ -599,7 +599,16 @@ int cpu_exec(CPUArchState *env)
                     tc_ptr = tb->tc_ptr;
                     /* execute the generated code */
                     next_tb = tcg_qemu_tb_exec(env, tc_ptr);
-                    if ((next_tb & 3) == 2) {
+                    if ((next_tb & 3) == 3) {
+                        /* hit stopflag check */
+                        tb = (TranslationBlock *)(long)(next_tb & ~3);
+                        /* Restore PC.  */
+                        cpu_pc_from_tb(env, tb);
+                        next_tb = 0;
+                        env->exit_request = 0;
+                        env->exception_index = EXCP_INTERRUPT;
+                        cpu_loop_exit(env);
+                    } else if ((next_tb & 3) == 2) {
                         /* Instruction counter expired.  */
                         int insns_left;
                         tb = (TranslationBlock *)(next_tb & ~3);
