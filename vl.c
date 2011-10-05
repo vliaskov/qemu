@@ -174,6 +174,8 @@ int main(int argc, char **argv)
 
 #define MAX_VIRTIO_CONSOLES 1
 
+extern int use_stopflag;
+
 static const char *data_dir;
 const char *bios_name = NULL;
 enum vga_retrace_method vga_retrace_method = VGA_RETRACE_DUMB;
@@ -2818,6 +2820,9 @@ int main(int argc, char **argv, char **envp)
                 break;
             case QEMU_OPTION_rtc_td_hack:
                 rtc_td_hack = 1;
+                break;
+            case QEMU_OPTION_no_stopflag:
+                use_stopflag = 0;
                 break;
             case QEMU_OPTION_acpitable:
                 do_acpitable_option(optarg);

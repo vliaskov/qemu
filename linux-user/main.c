@@ -52,6 +52,7 @@ unsigned long reserved_va;
 #endif
 
 static void usage(void);
+extern int use_stopflag;
 
 static const char *interp_prefix = CONFIG_QEMU_INTERP_PREFIX;
 const char *qemu_uname_release = CONFIG_UNAME_RELEASE;
@@ -3072,6 +3073,11 @@ static void handle_arg_reserved_va(const char *arg)
 }
 #endif
 
+static void handle_arg_nostopflag(const char *arg)
+{
+    use_stopflag = 0;
+}
+
 static void handle_arg_singlestep(const char *arg)
 {
     singlestep = 1;
@@ -3125,6 +3131,8 @@ struct qemu_argument arg_table[] = {
 #endif
     {"d",          "QEMU_LOG",         true,  handle_arg_log,
      "options",    "activate log"},
+    {"no-stopflag", "QEMU_NOSTOPFLAG", false, handle_arg_nostopflag,
+     "",           "run in singlestep mode"},
     {"p",          "QEMU_PAGESIZE",    true,  handle_arg_pagesize,
      "pagesize",   "set the host page size to 'pagesize'"},
     {"singlestep", "QEMU_SINGLESTEP",  false, handle_arg_singlestep,

@@ -1112,6 +1112,15 @@ STEXI
 Disable HPET support.
 ETEXI
 
+DEF("no-stopflag", 0, QEMU_OPTION_no_stopflag,
+    "-no-stopflag   use old behaviour, not inline stopflag checks\n", QEMU_ARCH_ALL)
+STEXI
+@item -no-stopflag
+@findex -no-stopflag
+Implement cpu-exit by the old tb link breaking method rather than inline checks
+(this is slightly faster but racy!)
+ETEXI
+
 DEF("balloon", HAS_ARG, QEMU_OPTION_balloon,
     "-balloon none   disable balloon device\n"
     "-balloon virtio[,addr=str]\n"
