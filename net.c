@@ -30,6 +30,7 @@
 #include "net/dump.h"
 #include "net/slirp.h"
 #include "net/vde.h"
+#include "net/udp.h"
 #include "net/util.h"
 #include "monitor.h"
 #include "qemu-common.h"
@@ -1031,6 +1032,29 @@ static const struct {
         },
     },
 #endif
+
+    [NET_CLIENT_TYPE_UDP] = {
+        .type = "udp",
+        .init = net_init_udp,
+        .desc = {
+            NET_COMMON_PARAMS_DESC,
+            {
+                .name = "sport",
+                .type = QEMU_OPT_NUMBER,
+
+                .help = "source port number",
+            }, {
+                .name = "daddr",
+                .type = QEMU_OPT_STRING,
+                .help = "destination IP address",
+            }, {
+                .name = "dport",
+                .type = QEMU_OPT_NUMBER,
+                .help = "destination port number",
+            },
+            { /* end of list */ }
+        },
+    },
     [NET_CLIENT_TYPE_DUMP] = {
         .type = "dump",
         .init = net_init_dump,
@@ -1348,6 +1372,7 @@ void net_check_clients(void)
             case NET_CLIENT_TYPE_USER:
             case NET_CLIENT_TYPE_TAP:
             case NET_CLIENT_TYPE_SOCKET:
+            case NET_CLIENT_TYPE_UDP:
             case NET_CLIENT_TYPE_VDE:
                 has_host_dev = 1;
                 break;
