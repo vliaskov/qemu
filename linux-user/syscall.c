@@ -4833,7 +4833,10 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
 #ifdef TARGET_NR_waitpid
     case TARGET_NR_waitpid:
         {
-            int status;
+            int status = 0;
+            if (arg2) {
+                get_user_s32(status, arg2);
+            }
             ret = get_errno(waitpid(arg1, &status, arg3));
             if (!is_error(ret) && arg2
                 && put_user_s32(host_to_target_waitstatus(status), arg2))
@@ -6389,6 +6392,9 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
                 rusage_ptr = &rusage;
             else
                 rusage_ptr = NULL;
+            if (status_ptr) {
+                get_user_s32(status, status_ptr);
+            }
             ret = get_errno(wait4(arg1, &status, arg3, rusage_ptr));
             if (!is_error(ret)) {
                 if (status_ptr) {
