@@ -137,6 +137,8 @@ typedef struct TaskState {
     struct sigqueue sigqueue_table[MAX_SIGQUEUE_SIZE]; /* siginfo queue */
     struct sigqueue *first_free; /* first free siginfo queue entry */
     int signal_pending; /* non zero if a signal may be pending */
+    int signal_in_syscall; /* non zero if we are in do_syscall() */
+    int signal_restart; /* non zero if we need to restart a syscall */
 } __attribute__((aligned(16))) TaskState;
 
 extern char *exec_path;
@@ -203,6 +205,7 @@ char *target_strerror(int err);
 int get_osversion(void);
 void fork_start(void);
 void fork_end(int child);
+int syscall_restartable(int syscall_nr);
 
 /* Return true if the proposed guest_base is suitable for the guest.
  * The guest code may leave a page mapped and populate it if the
