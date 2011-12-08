@@ -4643,6 +4643,7 @@ static int open_self_maps(void *cpu_env, int fd)
     }
 
     free(line);
+    fclose(fp);
 
 #if defined(TARGET_ARM) || defined(TARGET_M68K) || defined(TARGET_UNICORE32)
     dprintf(fd, "%08llx-%08llx rw-p %08llx 00:00 0          [stack]\n",
