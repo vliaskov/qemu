@@ -210,7 +210,7 @@ static int mmap_frag(abi_ulong real_start,
 /* Cygwin doesn't have a whole lot of address space.  */
 # define TASK_UNMAPPED_BASE  0x18000000
 #else
-# define TASK_UNMAPPED_BASE  0x10000000
+# define TASK_UNMAPPED_BASE  0x18000000
 #endif
 static abi_ulong mmap_next_start = TASK_UNMAPPED_BASE;
 
