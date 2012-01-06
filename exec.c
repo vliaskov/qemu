@@ -2392,10 +2392,12 @@ static void *file_ram_alloc(RAMBlock *block,
         return NULL;
     }
 
+#ifndef TARGET_PPC
     if (kvm_enabled() && !kvm_has_sync_mmu()) {
         fprintf(stderr, "host lacks kvm mmu notifiers, -mem-path unsupported\n");
         return NULL;
     }
+#endif
 
     if (asprintf(&filename, "%s/qemu_back_mem.XXXXXX", path) == -1) {
         return NULL;
