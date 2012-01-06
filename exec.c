@@ -1229,11 +1229,13 @@ static void *file_ram_alloc(RAMBlock *block,
         goto error;
     }
 
+#ifndef TARGET_PPC
     if (kvm_enabled() && !kvm_has_sync_mmu()) {
         error_setg(errp,
                    "host lacks kvm mmu notifiers, -mem-path unsupported");
         goto error;
     }
+#endif
 
     if (!stat(path, &st) && S_ISDIR(st.st_mode)) {
         /* Make name safe to use with mkstemp by replacing '/' with '_'. */
