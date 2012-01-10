@@ -759,7 +759,10 @@ void kvmppc_set_papr(CPUState *env)
     reg.u.reg64 = env->spr[SPR_HIOR];
     ret = kvm_vcpu_ioctl(env, KVM_SET_ONE_REG, &reg);
     if (ret) {
-        goto fail;
+        fprintf(stderr, "Couldn't set HIOR. Maybe you're running an old \n"
+                        "kernel with support for HV KVM but no PAPR PR \n"
+                        "KVM in which case things will work. If they don't \n"
+                        "please update your host kernel!\n");
     }
 
     /* Set SDR1 so kernel space finds the HTAB */
