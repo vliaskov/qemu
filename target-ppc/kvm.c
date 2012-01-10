@@ -745,7 +745,7 @@ void kvmppc_set_papr(CPUState *env)
     ret = kvm_vcpu_ioctl(env, KVM_ENABLE_CAP, &cap);
 
     if (ret) {
-        goto fail;
+        fprintf(stderr, "You're running a very old kernel. Expect breakage!\n");
     }
 
     /*
