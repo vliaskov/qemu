@@ -103,6 +103,10 @@ static inline int handle_cpu_signal(uintptr_t pc, siginfo_t *info,
     printf("qemu: SIGSEGV pc=0x%08lx address=%08lx w=%d oldset=0x%08lx\n",
            pc, address, is_write, *(unsigned long *)old_set);
 #endif
+
+    /* Maybe we're still holding the TB fiddling lock? */
+    tb_lock_reset();
+
     /* XXX: locking issue */
     /* Note that it is important that we don't call page_unprotect() unless
      * this is really a "write to nonwriteable page" fault, because
