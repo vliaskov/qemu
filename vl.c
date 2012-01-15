@@ -26,6 +26,7 @@
 #include "qemu/cutils.h"
 #include "qemu/help_option.h"
 #include "qemu/uuid.h"
+#include <sys/resource.h>
 
 #ifdef CONFIG_SECCOMP
 #include "sysemu/seccomp.h"
@@ -3031,12 +3032,23 @@ int main(int argc, char **argv, char **envp)
     Error *main_loop_err = NULL;
     Error *err = NULL;
     bool list_data_dirs = false;
+    struct rlimit rlimit_as;
 
     module_call_init(MODULE_INIT_TRACE);
 
     qemu_init_cpu_list();
     qemu_init_cpu_loop();
     qemu_mutex_lock_iothread();
+
+    /*
+     * Try to raise the soft address space limit.
+     * Default on SLES 11 SP2 is 80% of physical+swap memory.
+     */
+    getrlimit(RLIMIT_AS, &rlimit_as);
+    if (rlimit_as.rlim_cur < rlimit_as.rlim_max) {
+        rlimit_as.rlim_cur = rlimit_as.rlim_max;
+        setrlimit(RLIMIT_AS, &rlimit_as);
+    }
 
     atexit(qemu_run_exit_notifiers);
     error_set_progname(argv[0]);
