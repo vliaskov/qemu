@@ -4861,7 +4861,7 @@ static int open_self_maps(void *cpu_env, int fd)
         uint64_t min, max, offset;
         char flag_r, flag_w, flag_x, flag_p;
         char path[512] = "";
-        fields = sscanf(line, "%"PRIx64"-%"PRIx64" %c%c%c%c %"PRIx64" %d:%d %d"
+        fields = sscanf(line, "%"PRIx64"-%"PRIx64" %c%c%c%c %"PRIx64" %x:%x %d"
                         " %512s", &min, &max, &flag_r, &flag_w, &flag_x,
                         &flag_p, &offset, &dev_maj, &dev_min, &inode, path);
 
@@ -4873,7 +4873,7 @@ static int open_self_maps(void *cpu_env, int fd)
         }
         if (h2g_valid(min) && h2g_valid(max)) {
             dprintf(fd, TARGET_FMT_lx "-" TARGET_FMT_lx " %c%c%c%c %08" PRIx64
-                    " %02d:%02d %d%s%s\n", h2g(min), h2g(max), flag_r, flag_w,
+                    " %02x:%02x %d%s%s\n", h2g(min), h2g(max), flag_r, flag_w,
                     flag_x, flag_p, offset, dev_maj, dev_min, inode,
                     path[0] ? "          " : "", path);
         }
