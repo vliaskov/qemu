@@ -96,6 +96,8 @@ void QEMU_NORETURN cpu_loop_exit(CPUState *env1);
 int page_unprotect(target_ulong address, unsigned long pc, void *puc);
 void tb_invalidate_phys_page_range(tb_page_addr_t start, tb_page_addr_t end,
                                    int is_cpu_write_access);
+void tb_invalidate_phys_range(tb_page_addr_t start, tb_page_addr_t end,
+                              int is_cpu_write_access);
 void tlb_flush_page(CPUState *env, target_ulong addr);
 void tlb_flush(CPUState *env, int flush_global);
 #if !defined(CONFIG_USER_ONLY)

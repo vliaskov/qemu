@@ -587,6 +587,7 @@ abi_long target_mmap(abi_ulong start, abi_ulong len, int prot,
     page_dump(stdout);
     printf("\n");
 #endif
+    tb_invalidate_phys_range(start, start + len, 0);
     mmap_unlock();
     return start;
 fail:
@@ -768,6 +769,7 @@ abi_long target_mremap(abi_ulong old_addr, abi_ulong old_size,
         page_set_flags(old_addr, old_addr + old_size, 0);
         page_set_flags(new_addr, new_addr + new_size, prot | PAGE_VALID);
     }
+    tb_invalidate_phys_range(new_addr, new_addr + new_size, 0);
     mmap_unlock();
     return new_addr;
 }
