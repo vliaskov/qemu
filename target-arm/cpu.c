@@ -165,7 +165,11 @@ static void arm_cpu_reset(CPUState *s)
      * bake assumptions about into translated code, so we need to
      * tb_flush().
      */
+#if !defined(CONFIG_USER_ONLY)
+    /* XXX hack alert! automoc4 segfaults after spawning a new thread with
+     *     this flush enabled */
     tb_flush(env);
+#endif
 
 #ifndef CONFIG_USER_ONLY
     if (kvm_enabled()) {
