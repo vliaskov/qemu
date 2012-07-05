@@ -46,6 +46,8 @@ typedef uint64_t tcg_target_ulong;
 #error unsupported
 #endif
 
+#include "config-host.h"
+#include "qemu-thread.h"
 #include "tcg-target.h"
 #include "tcg-runtime.h"
 
@@ -389,6 +391,7 @@ struct TCGContext {
 #ifdef CONFIG_DEBUG_TCG
     int temps_in_use;
 #endif
+    QemuMutex lock;
 };
 
 extern TCGContext tcg_ctx;
@@ -567,6 +570,9 @@ void tcg_gen_shifti_i64(TCGv_i64 ret, TCGv_i64 arg1,
 
 TCGArg *tcg_optimize(TCGContext *s, uint16_t *tcg_opc_ptr, TCGArg *args,
                      TCGOpDef *tcg_op_def);
+
+extern void tcg_lock(void);
+extern void tcg_unlock(void);
 
 /* only used for debugging purposes */
 void tcg_register_helper(void *func, const char *name);
