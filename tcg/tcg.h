@@ -54,6 +54,8 @@ typedef uint64_t tcg_target_ulong;
 #error unsupported
 #endif
 
+#include "config-host.h"
+#include "qemu/thread.h"
 #include "tcg-runtime.h"
 
 #if TCG_TARGET_NB_REGS <= 32
@@ -530,6 +532,7 @@ struct TCGContext {
 
     /* The TCGBackendData structure is private to tcg-target.c.  */
     struct TCGBackendData *be;
+    QemuMutex lock;
 };
 
 extern TCGContext tcg_ctx;
@@ -706,6 +709,9 @@ void tcg_gen_shifti_i64(TCGv_i64 ret, TCGv_i64 arg1,
 
 TCGArg *tcg_optimize(TCGContext *s, uint16_t *tcg_opc_ptr, TCGArg *args,
                      TCGOpDef *tcg_op_def);
+
+extern void tcg_lock(void);
+extern void tcg_unlock(void);
 
 /* only used for debugging purposes */
 void tcg_dump_ops(TCGContext *s);
