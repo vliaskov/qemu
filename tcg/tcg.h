@@ -27,6 +27,7 @@
 
 #include "qemu-common.h"
 #include "qemu/bitops.h"
+#include "qemu/thread.h"
 #include "tcg-target.h"
 
 /* Default target word size to pointer size.  */
@@ -555,6 +556,8 @@ struct TCGContext {
     target_ulong gen_opc_pc[OPC_BUF_SIZE];
     uint16_t gen_opc_icount[OPC_BUF_SIZE];
     uint8_t gen_opc_instr_start[OPC_BUF_SIZE];
+
+    QemuMutex lock;
 };
 
 extern TCGContext tcg_ctx;
@@ -742,6 +745,9 @@ void tcg_gen_callN(TCGContext *s, void *func,
 
 void tcg_op_remove(TCGContext *s, TCGOp *op);
 void tcg_optimize(TCGContext *s);
+
+extern void tcg_lock(void);
+extern void tcg_unlock(void);
 
 /* only used for debugging purposes */
 void tcg_dump_ops(TCGContext *s);
