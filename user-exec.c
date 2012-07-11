@@ -100,21 +100,27 @@ static inline int handle_cpu_signal(uintptr_t pc, unsigned long address,
     /* Maybe we're still holding the TB fiddling lock? */
     spin_unlock_safe(&tb_lock);
 
-    if (h2g_valid(address)) {
-        /* XXX: locking issue */
-        if (is_write && page_unprotect(h2g(address), pc, puc)) {
-            return 1;
-        }
-
-        /* see if it is an MMU fault */
-        ret = cpu_handle_mmu_fault(env, h2g(address), is_write, MMU_USER_IDX);
-        if (ret < 0) {
-            return 0; /* not an MMU fault */
-        }
-        if (ret == 0) {
-            return 1; /* the MMU fault was handled without causing real CPU fault */
-        }
+    /* XXX: locking issue */
+    if (h2g_valid(address) && is_write &&
+        page_unprotect(h2g(address), pc, puc)) {
+        return 1;
     }
+
+    if (RESERVED_VA) {
+        /* Convert forcefully to guest address space, invalid addresses
+           are still valid segv ones */
+        address = address - GUEST_BASE;
+    }
+
+    /* see if it is an MMU fault */
+    ret = cpu_handle_mmu_fault(env, address, is_write, MMU_USER_IDX);
+    if (ret < 0) {
+        return 0; /* not an MMU fault */
+    }
+    if (ret == 0) {
+        return 1; /* the MMU fault was handled without causing real CPU fault */
+    }
+
     /* now we have a real cpu fault */
     tb = tb_find_pc(pc);
     if (tb) {
