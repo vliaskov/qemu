@@ -80,6 +80,8 @@ build-seabios-config-%: config.%
 
 
 lgplvgabios: $(patsubst %,lgplvgabios-%,$(vgabios_variants))
+	make -C vgabios vgabios.bin
+	cp vgabios/VGABIOS-lgpl-latest.bin ../pc-bios/vgabios.bin
 
 lgplvgabios-isavga: build-lgplvgabios
 	cp vgabios/VGABIOS-lgpl-latest.bin ../pc-bios/vgabios.bin
