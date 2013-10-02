@@ -50,6 +50,8 @@ seavgabios-%: config.vga.%
 	cp seabios/out/vgabios.bin ../pc-bios/vgabios-$*.bin
 
 lgplvgabios: $(patsubst %,lgplvgabios-%,$(vgabios_variants))
+	make -C vgabios vgabios.bin
+	cp vgabios/VGABIOS-lgpl-latest.bin ../pc-bios/vgabios.bin
 
 lgplvgabios-%:
 	make -C vgabios vgabios-$*.bin
