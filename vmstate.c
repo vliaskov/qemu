@@ -78,6 +78,10 @@ int vmstate_load_state(QEMUFile *f, const VMStateDescription *vmsd,
                     return ret;
                 }
             }
+        } else if (field->flags & VMS_MUST_EXIST) {
+            fprintf(stderr, "Input validation failed: %s/%s\n",
+                    vmsd->name, field->name);
+            return -1;
         }
         field++;
     }
@@ -137,6 +141,12 @@ void vmstate_save_state(QEMUFile *f, const VMStateDescription *vmsd,
                 } else {
                     field->info->put(f, addr, size);
                 }
+            }
+        } else {
+            if (field->flags & VMS_MUST_EXIST) {
+                fprintf(stderr, "Output state validation failed: %s/%s\n",
+                        vmsd->name, field->name);
+                assert(!(field->flags & VMS_MUST_EXIST));
             }
         }
         field++;
