@@ -162,7 +162,9 @@ check-qtest-microblazeel-y = $(check-qtest-microblaze-y)
 check-qtest-xtensaeb-y = $(check-qtest-xtensa-y)
 
 # qom-test works for all sysemu architectures:
-$(foreach target,$(SYSEMU_TARGET_LIST), \
+QTEST_SYSEMU_TARGET_LIST=$(filter-out x86_64 microblazeel xtensaeb, \
+    $(SYSEMU_TARGET_LIST))
+$(foreach target,$(QTEST_SYSEMU_TARGET_LIST), \
     $(eval check-qtest-$(target)-y += tests/qom-test$(EXESUF)))
 
 check-qapi-schema-y := $(addprefix tests/qapi-schema/, \
