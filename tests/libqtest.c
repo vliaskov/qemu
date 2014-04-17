@@ -34,7 +34,7 @@
 #include "qapi/qmp/json-parser.h"
 
 #define MAX_IRQ 256
-#define SOCKET_TIMEOUT 5
+#define SOCKET_TIMEOUT 15
 
 QTestState *global_qtest;
 
