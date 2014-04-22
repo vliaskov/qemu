@@ -717,6 +717,22 @@ static void tcg_out_call(TCGContext *s, tcg_target_long arg, int const_arg)
         tcg_out32(s, MTSPR | RS(arg) | LR);
         tcg_out32(s, BCLR | BO_ALWAYS | LK);
     }
+#elif _CALL_ELF == 2
+    /* In the ELFv2 ABI, we do not need to set up the TOC pointer in r2,
+       but instead we have to set up r12 to contain the destination address
+       when performing an indirect call.  */
+    TCGReg reg = arg;
+    if (const_arg) {
+        /* FIXME: we could use bl if we knew that the destination uses
+           the same TOC, and what its local entry point offset is.
+           For now, always perform an indirect call.  */
+        tcg_out_movi(s, TCG_TYPE_PTR, TCG_REG_R12, arg);
+        reg = TCG_REG_R12;
+    } else {
+        tcg_out_mov(s, TCG_TYPE_PTR, TCG_REG_R12, arg);
+    }
+    tcg_out32(s, MTSPR | RS(reg) | CTR);
+    tcg_out32(s, BCCTR | BO_ALWAYS | LK);
 #else
     TCGReg reg = arg;
     int ofs = 0;
@@ -1112,7 +1128,7 @@ static void tcg_target_qemu_prologue(TCGContext *s)
                   REG_SAVE_BOT - CPU_TEMP_BUF_NLONGS * sizeof(long),
                   CPU_TEMP_BUF_NLONGS * sizeof(long));
 
-#ifndef __APPLE__
+#if !defined(__APPLE__) && _CALL_ELF != 2
     /* First emit adhoc function descriptor */
     tcg_out64(s, (uint64_t)s->code_ptr + 24); /* entry point */
     s->code_ptr += 16;          /* skip TOC and environment pointer */
