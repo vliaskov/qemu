@@ -9602,7 +9602,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_ulong arg1,
         /* args: timer_t timerid, int flags, const struct itimerspec *new_value,
          * struct itimerspec * old_value */
         arg1 &= 0xffff;
-        if (arg3 == 0 || arg1 < 0 || arg1 >= ARRAY_SIZE(g_posix_timers)) {
+        if (arg3 == 0 || (int16_t)arg1 < 0 || arg1 >= ARRAY_SIZE(g_posix_timers)) {
             ret = -TARGET_EINVAL;
         } else {
             timer_t htimer = g_posix_timers[arg1];
@@ -9624,7 +9624,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_ulong arg1,
         arg1 &= 0xffff;
         if (!arg2) {
             return -TARGET_EFAULT;
-        } else if (arg1 < 0 || arg1 >= ARRAY_SIZE(g_posix_timers)) {
+        } else if ((int16_t)arg1 < 0 || arg1 >= ARRAY_SIZE(g_posix_timers)) {
             ret = -TARGET_EINVAL;
         } else {
             timer_t htimer = g_posix_timers[arg1];
@@ -9644,7 +9644,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_ulong arg1,
     {
         /* args: timer_t timerid */
         arg1 &= 0xffff;
-        if (arg1 < 0 || arg1 >= ARRAY_SIZE(g_posix_timers)) {
+        if ((int16_t)arg1 < 0 || arg1 >= ARRAY_SIZE(g_posix_timers)) {
             ret = -TARGET_EINVAL;
         } else {
             timer_t htimer = g_posix_timers[arg1];
@@ -9659,7 +9659,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_ulong arg1,
     {
         /* args: timer_t timerid */
         arg1 &= 0xffff;
-        if (arg1 < 0 || arg1 >= ARRAY_SIZE(g_posix_timers)) {
+        if ((int16_t)arg1 < 0 || arg1 >= ARRAY_SIZE(g_posix_timers)) {
             ret = -TARGET_EINVAL;
         } else {
             timer_t htimer = g_posix_timers[arg1];
