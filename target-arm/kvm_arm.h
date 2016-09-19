@@ -288,4 +288,15 @@ static inline const char *its_class_name(void)
     }
 }
 
+/**
+ * kvm_arm_eoi_notify:
+ *
+ * @cpu: CPU index the EOI is for
+ *
+ * Notify KVM that we're done processing an interrupt. This is
+ * used to unmask any pending timer interrupts and potentially
+ * learn about the fact that the level is still high.
+ */
+void kvm_arm_eoi_notify(int cpu);
+
 #endif
