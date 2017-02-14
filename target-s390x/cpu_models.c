@@ -738,6 +738,7 @@ void s390_realize_cpu_model(CPUState *cs, Error **errp)
         return;
     }
 
+#ifndef CONFIG_USER_ONLY
     /* copy over properties that can vary */
     cpu->model->lowest_ibc = max_model->lowest_ibc;
     cpu->model->cpu_id = max_model->cpu_id;
@@ -750,6 +751,7 @@ void s390_realize_cpu_model(CPUState *cs, Error **errp)
     }
 
     apply_cpu_model(cpu->model, errp);
+#endif
 }
 
 static void get_feature(Object *obj, Visitor *v, const char *name,
