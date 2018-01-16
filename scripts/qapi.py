@@ -1687,7 +1687,7 @@ class QAPISchema(object):
                 assert False
 
     def check(self):
-        for ent in self._entity_dict.values():
+        for (name, ent) in sorted(self._entity_dict.items()):
             ent.check(self)
 
     def visit(self, visitor):
