@@ -232,4 +232,6 @@ void blk_set_force_allow_inactivate(BlockBackend *blk);
 void blk_register_buf(BlockBackend *blk, void *host, size_t size);
 void blk_unregister_buf(BlockBackend *blk, void *host);
 
+void blk_legacy_resize_cb(BlockBackend *blk);
+
 #endif
