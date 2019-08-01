@@ -72,6 +72,35 @@ static void virgl_cmd_create_resource_3d(VirtIOGPU *g,
     virgl_renderer_resource_create(&args, NULL, 0);
 }
 
+static void virgl_cmd_create_resource_v2(VirtIOGPU *g,
+                                         struct virtio_gpu_ctrl_command *cmd)
+{
+    struct virtio_gpu_cmd_resource_create_v2 c3d;
+    struct virgl_renderer_resource_create_args args;
+    int ret;
+
+    VIRTIO_GPU_FILL_CMD(c3d);
+    /*trace_virtio_gpu_cmd_res_create_3d(c3d.resource_id, c3d.format,
+                                       c3d.width, c3d.height, c3d.depth);*/
+
+    fprintf(stderr, "%s resource_id: %u\n", __func__, c3d.resource_id);
+    args.handle = c3d.resource_id;
+    args.target = c3d.target;
+    args.format = c3d.format;
+    args.bind = c3d.bind;
+    args.width = c3d.width;
+    args.height = c3d.target != 0 ? c3d.height : 1;
+    args.depth =  c3d.target != 0 ? c3d.depth : 1;
+    args.array_size = c3d.array_size;
+    args.last_level = c3d.last_level;
+    args.nr_samples = c3d.nr_samples;
+    args.flags = c3d.flags;
+    ret = virgl_renderer_resource_create(&args, NULL, 0);
+    if (ret != 0) {
+    	fprintf(stderr, "%s resource_id: %u ERROR FAILED errno %d\n", __func__, c3d.resource_id, ret);
+    }
+}
+
 static void virgl_cmd_resource_unref(VirtIOGPU *g,
                                      struct virtio_gpu_ctrl_command *cmd)
 {
@@ -399,6 +428,55 @@ static void virgl_cmd_get_capset(VirtIOGPU *g,
     g_free(resp);
 }
 
+static void virgl_resource_attach_memory(VirtIOGPU *g,
+                                          struct virtio_gpu_ctrl_command *cmd)
+{
+    /*struct virtio_gpu_cmd_resource_attach_memory att_rb;
+    struct iovec *res_iovs;
+    int ret;
+
+    VIRTIO_GPU_FILL_CMD(att_rb);
+
+    ret = virtio_gpu_create_mapping_iov(g, &att_rb, cmd, NULL, &res_iovs);
+    if (ret != 0) {
+        cmd->error = VIRTIO_GPU_RESP_ERR_UNSPEC;
+        return;
+    }
+
+    ret = virgl_renderer_resource_attach_iov(att_rb.resource_id,
+                                             res_iovs, att_rb.nr_entries);
+
+    if (ret != 0)
+        virtio_gpu_cleanup_mapping_iov(g, res_iovs, att_rb.nr_entries);*/
+}
+
+static void virgl_memory_create(VirtIOGPU *g,
+                                          struct virtio_gpu_ctrl_command *cmd)
+{
+    struct virtio_gpu_cmd_memory_create att_rb;
+    struct iovec *res_iovs;
+    int ret;
+
+    VIRTIO_GPU_FILL_CMD(att_rb);
+    //trace_virtio_gpu_cmd_res_back_attach(att_rb.resource_id);
+
+    fprintf(stderr, "%s resource_id: %u\n", __func__, att_rb.memory_id);
+    ret = virtio_gpu_memory_create_iov(g, &att_rb, cmd, NULL, &res_iovs);
+    if (ret != 0) {
+        fprintf(stderr, "CMD MEMORY %s ERROR resource_id: %u\n", __func__, att_rb.memory_id);
+        cmd->error = VIRTIO_GPU_RESP_ERR_UNSPEC;
+        return;
+    }
+
+    ret = virgl_renderer_resource_attach_iov(att_rb.memory_id,
+                                             res_iovs, att_rb.nr_entries);
+
+    if (ret != 0) {
+	fprintf(stderr, "CMD MEMORY %s failed for %p num entries %u \n", __func__, res_iovs, att_rb.nr_entries);
+        virtio_gpu_cleanup_mapping_iov(g, res_iovs, att_rb.nr_entries);
+	}
+}
+
 void virtio_gpu_virgl_process_cmd(VirtIOGPU *g,
                                       struct virtio_gpu_ctrl_command *cmd)
 {
@@ -459,12 +537,29 @@ void virtio_gpu_virgl_process_cmd(VirtIOGPU *g,
     case VIRTIO_GPU_CMD_GET_CAPSET:
         virgl_cmd_get_capset(g, cmd);
         break;
-
     case VIRTIO_GPU_CMD_GET_DISPLAY_INFO:
         virtio_gpu_get_display_info(g, cmd);
         break;
     case VIRTIO_GPU_CMD_GET_EDID:
         virtio_gpu_get_edid(g, cmd);
+        break;
+    case VIRTIO_GPU_CMD_MEMORY_CREATE:
+	fprintf(stderr, "CMD MEMORY called %u\n", cmd->cmd_hdr.type);
+	virgl_memory_create(g, cmd);
+	break;
+    case VIRTIO_GPU_CMD_MEMORY_UNREF:
+    case VIRTIO_GPU_CMD_MEMORY_MAP:
+	fprintf(stderr, "CMD MEMORY called %u\n", cmd->cmd_hdr.type);
+        break;
+    case VIRTIO_GPU_CMD_RESOURCE_ATTACH_MEMORY:
+	/* FIXME */
+	fprintf(stderr, "CMD MEMORY called %u\n", cmd->cmd_hdr.type);
+        virgl_resource_attach_memory(g, cmd);
+        //virgl_resource_attach_backing(g, cmd);
+        break;
+    case VIRTIO_GPU_CMD_RESOURCE_CREATE_V2:
+	fprintf(stderr, "CMD MEMORY called %u\n", cmd->cmd_hdr.type);
+        virgl_cmd_create_resource_v2(g, cmd);
         break;
     default:
         cmd->error = VIRTIO_GPU_RESP_ERR_UNSPEC;

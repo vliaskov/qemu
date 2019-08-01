@@ -211,15 +211,20 @@ static uint64_t virtio_gpu_get_features(VirtIODevice *vdev, uint64_t features,
     if (virtio_gpu_edid_enabled(g->conf)) {
         features |= (1 << VIRTIO_GPU_F_EDID);
     }
+    if (virtio_gpu_memory_enabled(g->conf)) {
+        features |= (1 << VIRTIO_GPU_F_MEMORY);
+    }
     return features;
 }
 
 static void virtio_gpu_set_features(VirtIODevice *vdev, uint64_t features)
 {
     static const uint32_t virgl = (1 << VIRTIO_GPU_F_VIRGL);
+    static const uint32_t memory = (1 << VIRTIO_GPU_F_MEMORY);
     VirtIOGPU *g = VIRTIO_GPU(vdev);
 
     g->use_virgl_renderer = ((features & virgl) == virgl);
+    g->use_memory = ((features & memory) == memory);
     trace_virtio_gpu_features(g->use_virgl_renderer);
 }
 
@@ -788,6 +793,67 @@ int virtio_gpu_create_mapping_iov(VirtIOGPU *g,
     return 0;
 }
 
+int virtio_gpu_memory_create_iov(VirtIOGPU *g,
+                                  struct virtio_gpu_cmd_memory_create *ab,
+                                  struct virtio_gpu_ctrl_command *cmd,
+                                  uint64_t **addr, struct iovec **iov)
+{
+    struct virtio_gpu_mem_entry *ents;
+    size_t esize, s;
+    int i;
+
+    if (ab->nr_entries > 16384) {
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "%s: nr_entries is too big (%d > 16384)\n",
+                      __func__, ab->nr_entries);
+        return -1;
+    }
+
+    esize = sizeof(*ents) * ab->nr_entries;
+    ents = g_malloc(esize);
+    s = iov_to_buf(cmd->elem.out_sg, cmd->elem.out_num,
+                   sizeof(*ab), ents, esize);
+    if (s != esize) {
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "%s: command data size incorrect %zu vs %zu\n",
+                      __func__, s, esize);
+        g_free(ents);
+        return -1;
+    }
+
+    *iov = g_malloc0(sizeof(struct iovec) * ab->nr_entries);
+    if (addr) {
+        *addr = g_malloc0(sizeof(uint64_t) * ab->nr_entries);
+    }
+	fprintf(stderr, "%s resource_id: %u num entries %u\n", __func__, ab->memory_id, ab->nr_entries);
+    for (i = 0; i < ab->nr_entries; i++) {
+        uint64_t a = le64_to_cpu(ents[i].addr);
+        uint32_t l = le32_to_cpu(ents[i].length);
+        hwaddr len = l;
+        (*iov)[i].iov_len = l;
+        (*iov)[i].iov_base = dma_memory_map(VIRTIO_DEVICE(g)->dma_as,
+                                            a, &len, DMA_DIRECTION_TO_DEVICE);
+        if (addr) {
+            (*addr)[i] = a;
+        }
+        if (!(*iov)[i].iov_base || len != l) {
+            qemu_log_mask(LOG_GUEST_ERROR, "%s: failed to map MMIO memory for"
+                          " resource memory_id %d element %d\n",
+                          __func__, ab->memory_id, i);
+            virtio_gpu_cleanup_mapping_iov(g, *iov, i);
+            g_free(ents);
+            *iov = NULL;
+            if (addr) {
+                g_free(*addr);
+                *addr = NULL;
+            }
+            return -1;
+        }
+    }
+    g_free(ents);
+    return 0;
+}
+
 void virtio_gpu_cleanup_mapping_iov(VirtIOGPU *g,
                                     struct iovec *iov, uint32_t count)
 {
@@ -1281,6 +1347,7 @@ static void virtio_gpu_device_realize(DeviceState *qdev, Error **errp)
     }
 
     g->use_virgl_renderer = false;
+    g->use_memory = false;
 #if !defined(CONFIG_VIRGL) || defined(HOST_WORDS_BIGENDIAN)
     have_virgl = false;
 #else
@@ -1433,6 +1500,8 @@ static Property virtio_gpu_properties[] = {
                     VIRTIO_GPU_FLAG_VIRGL_ENABLED, true),
     DEFINE_PROP_BIT("stats", VirtIOGPU, conf.flags,
                     VIRTIO_GPU_FLAG_STATS_ENABLED, false),
+    DEFINE_PROP_BIT("memory", VirtIOGPU, conf.flags,
+                    VIRTIO_GPU_FLAG_MEMORY_ENABLED, true),
 #endif
     DEFINE_PROP_BIT("edid", VirtIOGPU, conf.flags,
                     VIRTIO_GPU_FLAG_EDID_ENABLED, false),

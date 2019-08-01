@@ -62,6 +62,7 @@ enum virtio_gpu_conf_flags {
     VIRTIO_GPU_FLAG_VIRGL_ENABLED = 1,
     VIRTIO_GPU_FLAG_STATS_ENABLED,
     VIRTIO_GPU_FLAG_EDID_ENABLED,
+    VIRTIO_GPU_FLAG_MEMORY_ENABLED,
 };
 
 #define virtio_gpu_virgl_enabled(_cfg) \
@@ -70,6 +71,8 @@ enum virtio_gpu_conf_flags {
     (_cfg.flags & (1 << VIRTIO_GPU_FLAG_STATS_ENABLED))
 #define virtio_gpu_edid_enabled(_cfg) \
     (_cfg.flags & (1 << VIRTIO_GPU_FLAG_EDID_ENABLED))
+#define virtio_gpu_memory_enabled(_cfg) \
+    (_cfg.flags & (1 << VIRTIO_GPU_FLAG_MEMORY_ENABLED))
 
 struct virtio_gpu_conf {
     uint64_t max_hostmem;
@@ -114,6 +117,7 @@ typedef struct VirtIOGPU {
     bool renderer_inited;
     int renderer_blocked;
     bool renderer_reset;
+    bool use_memory;
     QEMUTimer *fence_poll;
     QEMUTimer *print_stats;
 
@@ -162,6 +166,10 @@ void virtio_gpu_get_edid(VirtIOGPU *g,
                          struct virtio_gpu_ctrl_command *cmd);
 int virtio_gpu_create_mapping_iov(VirtIOGPU *g,
                                   struct virtio_gpu_resource_attach_backing *ab,
+                                  struct virtio_gpu_ctrl_command *cmd,
+                                  uint64_t **addr, struct iovec **iov);
+int virtio_gpu_memory_create_iov(VirtIOGPU *g,
+                                  struct virtio_gpu_cmd_memory_create *ab,
                                   struct virtio_gpu_ctrl_command *cmd,
                                   uint64_t **addr, struct iovec **iov);
 void virtio_gpu_cleanup_mapping_iov(VirtIOGPU *g,
