@@ -18,6 +18,15 @@
 #include "hw/virtio/virtio.h"
 #include "hw/virtio/virtio-gpu.h"
 
+//#ifdef CONFIG_OPENGL_UDMABUF
+#include "sys/fcntl.h"
+#include "sys/ioctl.h"
+#include "cpu.h"
+#include "exec/address-spaces.h"
+#include "exec/ram_addr.h"
+#include <linux/udmabuf.h>
+//#endif
+
 #ifdef CONFIG_VIRGL
 
 #include <virglrenderer.h>
@@ -280,6 +289,71 @@ virgl_cmd_transfer_from_host_3d(VirtIOGPU *g,
                                      tf3d.offset, NULL, 0);
 }
 
+int virtio_gpu_create_dmabuf(struct virtio_gpu_mem_entry *ents,
+				struct iovec *iov, int num_iovs)
+{
+    struct udmabuf_create_list *list;
+    MemoryRegion *mr;
+    FlatView *fv;
+    int memfd, udmabuf, i, dmabuf_fd = 0;
+
+    fprintf(stderr, "%s num_iovs %d\n", __func__, num_iovs);
+    if (!num_iovs || !iov || !ents)
+	return 0;
+    //udmabuf = udmabuf_fd();
+    udmabuf = open("/dev/udmabuf", O_RDWR);
+    if (udmabuf < 0) {
+        fprintf(stderr, "%s cannot open /dev/udmabuf %d, error: %s\n", __func__, udmabuf, strerror(errno));
+        return 0;
+    }
+
+    list = g_malloc0(sizeof(struct udmabuf_create_list) +
+                     sizeof(struct udmabuf_create_item) * num_iovs);
+
+    for (i = 0; i < num_iovs; i++) {
+        uint64_t a = (uint64_t)le64_to_cpu(ents[i].addr); //iov[i].iov_base;
+        uint32_t l = le32_to_cpu(ents[i].length);         //iov[i].iov_len;
+        hwaddr xlat, len = l;
+
+        fprintf(stderr, "%s iov %d before translate\n", __func__, i);
+        rcu_read_lock();
+        fv = address_space_to_flatview(&address_space_memory);
+        fprintf(stderr, "%s iov %d before flatview_translate iov_base %lx length %u \n", __func__, i, a, l);
+        mr = flatview_translate(fv, a, &xlat, &len, true,
+                                MEMTXATTRS_UNSPECIFIED);
+        assert(mr);
+        //assert(mr->ram_block);
+        if (!mr->ram_block && !mr->alias) {
+           fprintf(stderr, "%s iov %d translate FAIL mr %p ram_block %p alias %p\n", __func__, i, mr, mr->ram_block, mr->alias);
+           rcu_read_unlock();
+	   goto out_dmabuf;
+	}
+	
+        memfd = memory_region_get_fd(mr);
+        fprintf(stderr, "%s iov %d translate mr %p memfd %d\n", __func__, i, mr, memfd);
+        rcu_read_unlock();
+
+        fprintf(stderr, "%s iov %d after translate memfd: %d offset: %lx len %lx \n", __func__, i, memfd, xlat, len);
+        list->list[i].memfd  = memfd;
+        list->list[i].offset = xlat;
+        list->list[i].size   = len;
+    }
+    list->count = num_iovs;
+    list->flags = UDMABUF_FLAGS_CLOEXEC;
+
+    dmabuf_fd = ioctl(udmabuf, UDMABUF_CREATE_LIST, list);
+    if (dmabuf_fd < 0) {
+        warn_report("%s: udmabuf_create_list: %s", __func__,
+                    strerror(errno));
+        close(udmabuf);
+        dmabuf_fd = 0;
+    }
+    else
+      fprintf(stderr, "%s dmabuf created %d\n", __func__, dmabuf_fd);
+out_dmabuf:
+    g_free(list);
+    return dmabuf_fd;
+}
 
 static void virgl_resource_attach_backing(VirtIOGPU *g,
                                           struct virtio_gpu_ctrl_command *cmd)
@@ -287,18 +361,33 @@ static void virgl_resource_attach_backing(VirtIOGPU *g,
     struct virtio_gpu_resource_attach_backing att_rb;
     struct iovec *res_iovs;
     int ret;
+    //uint8_t *remapped;
 
     VIRTIO_GPU_FILL_CMD(att_rb);
     trace_virtio_gpu_cmd_res_back_attach(att_rb.resource_id);
 
-    ret = virtio_gpu_create_mapping_iov(g, &att_rb, cmd, NULL, &res_iovs);
+#ifdef CONFIG_OPENGL_UDMABUF
+    int dmabuf_fd;
+    ret = virtio_gpu_create_mapping_iov(g, &att_rb, cmd, NULL, &res_iovs, &dmabuf_fd);
     if (ret != 0) {
         cmd->error = VIRTIO_GPU_RESP_ERR_UNSPEC;
         return;
     }
+    //dmabuf_fd = virtio_gpu_create_dmabuf(res_iovs, att_rb.nr_entries);
 
+    ret = virgl_renderer_resource_attach_dmabuf(att_rb.resource_id,
+                                             res_iovs, att_rb.nr_entries,
+						dmabuf_fd);
+#else
+    ret = virtio_gpu_create_mapping_iov(g, &att_rb, cmd, NULL, &res_iovs, NULL);
+    if (ret != 0) {
+        cmd->error = VIRTIO_GPU_RESP_ERR_UNSPEC;
+        return;
+    }
     ret = virgl_renderer_resource_attach_iov(att_rb.resource_id,
                                              res_iovs, att_rb.nr_entries);
+
+#endif
 
     if (ret != 0)
         virtio_gpu_cleanup_mapping_iov(g, res_iovs, att_rb.nr_entries);

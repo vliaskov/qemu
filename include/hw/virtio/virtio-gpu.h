@@ -39,6 +39,9 @@ struct virtio_gpu_simple_resource {
     uint32_t scanout_bitmask;
     pixman_image_t *image;
     uint64_t hostmem;
+    QemuDmaBuf *dmabuf;
+    size_t remapsz;
+    uint8_t *remapped;
     QTAILQ_ENTRY(virtio_gpu_simple_resource) next;
 };
 
@@ -163,10 +166,14 @@ void virtio_gpu_get_edid(VirtIOGPU *g,
 int virtio_gpu_create_mapping_iov(VirtIOGPU *g,
                                   struct virtio_gpu_resource_attach_backing *ab,
                                   struct virtio_gpu_ctrl_command *cmd,
-                                  uint64_t **addr, struct iovec **iov);
+                                  uint64_t **addr, struct iovec **iov,
+				 int *dmabuf_fd);
 void virtio_gpu_cleanup_mapping_iov(VirtIOGPU *g,
                                     struct iovec *iov, uint32_t count);
 void virtio_gpu_process_cmdq(VirtIOGPU *g);
+QemuDmaBuf *virtio_gpu_create_dmabuf_simple(struct virtio_gpu_simple_resource *res);
+int virtio_gpu_create_dmabuf(struct virtio_gpu_mem_entry *ents,
+				struct iovec *iov, int num_iovs);
 
 /* virtio-gpu-3d.c */
 void virtio_gpu_virgl_process_cmd(VirtIOGPU *g,

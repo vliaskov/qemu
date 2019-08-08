@@ -26,6 +26,16 @@
 #include "qemu/log.h"
 #include "qapi/error.h"
 
+
+//#ifdef CONFIG_OPENGL_UDMABUF
+#include "sys/fcntl.h"
+#include "sys/ioctl.h"
+#include "cpu.h"
+#include "exec/address-spaces.h"
+#include "exec/ram_addr.h"
+#include <linux/udmabuf.h>
+//#endif
+
 #define VIRTIO_GPU_VM_VERSION 1
 
 static struct virtio_gpu_simple_resource*
@@ -375,6 +385,64 @@ static uint32_t calc_image_hostmem(pixman_format_code_t pformat,
     return height * stride;
 }
 
+#ifdef CONFIG_OPENGL_UDMABUF
+
+QemuDmaBuf *virtio_gpu_create_dmabuf_simple(struct virtio_gpu_simple_resource *res)
+{
+    struct udmabuf_create_list *list;
+    QemuDmaBuf *dmabuf;
+    MemoryRegion *mr;
+    FlatView *fv;
+    int memfd, udmabuf, i;
+
+    udmabuf = open("/dev/udmabuf", O_RDWR);
+    //udmabuf = udmabuf_fd();
+    if (udmabuf < 0) {
+        return NULL;
+    }
+
+    list = g_malloc0(sizeof(struct udmabuf_create_list) +
+                     sizeof(struct udmabuf_create_item) * res->iov_cnt);
+
+    for (i = 0; i < res->iov_cnt; i++) {
+        uint64_t a = res->addrs[i];
+        uint32_t l = res->iov[i].iov_len;
+        hwaddr xlat, len = l;
+
+        rcu_read_lock();
+        fv = address_space_to_flatview(&address_space_memory);
+        mr = flatview_translate(fv, a, &xlat, &len, true,
+                                MEMTXATTRS_UNSPECIFIED);
+        memfd = mr->ram_block->fd;
+        rcu_read_unlock();
+
+        list->list[i].memfd  = memfd;
+        list->list[i].offset = xlat;
+        list->list[i].size   = len;
+    }
+    list->count = res->iov_cnt;
+    list->flags = UDMABUF_FLAGS_CLOEXEC;
+
+    dmabuf = g_new0(QemuDmaBuf, 1);
+    dmabuf->fd = ioctl(udmabuf, UDMABUF_CREATE_LIST, list);
+    if (dmabuf->fd < 0) {
+        warn_report("%s: UDMABUF_CREATE_LIST: %s", __func__,
+                    strerror(errno));
+        g_free(dmabuf);
+        dmabuf = NULL;
+    } else {
+        //uint32_t pformat = get_pixman_format(res->format);
+        dmabuf->width  = res->width;
+        dmabuf->height = res->height;
+        //dmabuf->stride = calc_image_stride(pformat, res->width);
+        //dmabuf->fourcc = qemu_pixman_to_drm_format(pformat);
+    }
+
+    g_free(list);
+    return dmabuf;
+}
+#endif
+
 static void virtio_gpu_resource_create_2d(VirtIOGPU *g,
                                           struct virtio_gpu_ctrl_command *cmd)
 {
@@ -529,6 +597,12 @@ static void virtio_gpu_transfer_to_host_2d(VirtIOGPU *g,
         cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_RESOURCE_ID;
         return;
     }
+
+#ifdef CONFIG_OPENGL_UDMABUF
+    if (res->remapped) {
+        return;
+    }
+#endif
 
     if (t2d.r.x > res->width ||
         t2d.r.y > res->height ||
@@ -731,7 +805,8 @@ static void virtio_gpu_set_scanout(VirtIOGPU *g,
 int virtio_gpu_create_mapping_iov(VirtIOGPU *g,
                                   struct virtio_gpu_resource_attach_backing *ab,
                                   struct virtio_gpu_ctrl_command *cmd,
-                                  uint64_t **addr, struct iovec **iov)
+                                  uint64_t **addr, struct iovec **iov,
+				  int *dmabuf_fd)
 {
     struct virtio_gpu_mem_entry *ents;
     size_t esize, s;
@@ -784,6 +859,12 @@ int virtio_gpu_create_mapping_iov(VirtIOGPU *g,
             return -1;
         }
     }
+
+#ifdef CONFIG_OPENGL_UDMABUF
+    if (dmabuf_fd)
+    *dmabuf_fd = virtio_gpu_create_dmabuf(ents, *iov, ab->nr_entries);
+#endif
+
     g_free(ents);
     return 0;
 }
@@ -837,13 +918,38 @@ virtio_gpu_resource_attach_backing(VirtIOGPU *g,
         return;
     }
 
-    ret = virtio_gpu_create_mapping_iov(g, &ab, cmd, &res->addrs, &res->iov);
+    ret = virtio_gpu_create_mapping_iov(g, &ab, cmd, &res->addrs, &res->iov, NULL);
     if (ret != 0) {
         cmd->error = VIRTIO_GPU_RESP_ERR_UNSPEC;
         return;
     }
 
     res->iov_cnt = ab.nr_entries;
+
+/*#ifdef CONFIG_OPENGL_UDMABUF
+    QemuDmaBuf *dmabuf = virtio_gpu_create_dmabuf_simple(res);
+    if (dmabuf) {
+        res->dmabuf = dmabuf;
+        res->remapsz = QEMU_ALIGN_UP(dmabuf->stride * dmabuf->height,
+                                     getpagesize());
+        res->remapped = mmap(NULL, res->remapsz, PROT_READ,
+                             MAP_SHARED, dmabuf->fd, 0);
+        if (res->remapped != MAP_FAILED) {
+            uint32_t pformat = get_pixman_format(res->format);
+            uint32_t stride = calc_image_stride(pformat, res->width);
+            pixman_image_unref(res->image);
+            res->image = pixman_image_create_bits(pformat,
+                                                  res->width, res->height,
+                                                  (void *)res->remapped,
+                                                  stride);
+
+        } else {
+            warn_report("%s: dmabuf mmap failed: %s", __func__,
+                        strerror(errno));
+            res->remapped = NULL;
+        }
+    }
+#endif*/
 }
 
 static void
@@ -865,6 +971,18 @@ virtio_gpu_resource_detach_backing(VirtIOGPU *g,
         return;
     }
     virtio_gpu_cleanup_mapping(g, res);
+
+#ifdef CONFIG_OPENGL_UDMABUF
+    if (res->dmabuf) {
+        if (res->remapped) {
+            munmap(res->remapped, res->remapsz);
+            res->remapped = NULL;
+        }
+        close(res->dmabuf->fd);
+        free(res->dmabuf);
+        res->dmabuf = NULL;
+    }
+#endif
 }
 
 static void virtio_gpu_simple_process_cmd(VirtIOGPU *g,
