@@ -491,6 +491,7 @@ docker="no"
 debug_mutex="no"
 libpmem=""
 default_devices="yes"
+opengl_udmabuf="no"
 
 # cross compilers defaults, can be overridden with --cross-cc-ARCH
 cross_cc_aarch64="aarch64-linux-gnu-gcc"
@@ -1517,6 +1518,10 @@ for opt do
   --enable-libpmem) libpmem=yes
   ;;
   --disable-libpmem) libpmem=no
+  ;;
+  --disable-opengl-udmabuf) opengl_udmabuf="no"
+  ;;
+  --enable-opengl-udmabuf) opengl_udmabuf="yes"
   ;;
   *)
       echo "ERROR: unknown option $opt"
@@ -6438,6 +6443,7 @@ echo "docker            $docker"
 echo "libpmem support   $libpmem"
 echo "libudev           $libudev"
 echo "default devices   $default_devices"
+echo "opengl-udmabuf    $opengl_udmabuf"
 
 if test "$supported_cpu" = "no"; then
     echo
@@ -6936,6 +6942,9 @@ if test "$opengl" = "yes" ; then
   echo "OPENGL_LIBS=$opengl_libs" >> $config_host_mak
   if test "$opengl_dmabuf" = "yes" ; then
     echo "CONFIG_OPENGL_DMABUF=y" >> $config_host_mak
+  fi
+  if test "$opengl_udmabuf" = "yes" ; then
+    echo "CONFIG_OPENGL_UDMABUF=y" >> $config_host_mak
   fi
 fi
 

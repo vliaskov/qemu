@@ -26,6 +26,13 @@
 #include "qemu/log.h"
 #include "qapi/error.h"
 
+#include "sys/fcntl.h"
+#include "sys/ioctl.h"
+#include "cpu.h"
+#include "exec/address-spaces.h"
+#include "exec/ram_addr.h"
+#include <linux/udmabuf.h>
+
 #define VIRTIO_GPU_VM_VERSION 1
 
 static struct virtio_gpu_simple_resource*
@@ -728,10 +735,69 @@ static void virtio_gpu_set_scanout(VirtIOGPU *g,
     scanout->height = ss.r.height;
 }
 
+int virtio_gpu_create_dmabuf(struct virtio_gpu_mem_entry *ents,
+				int num_iovs)
+{
+    struct udmabuf_create_list *list;
+    MemoryRegion *mr;
+    FlatView *fv;
+    int memfd, udmabuf, i, dmabuf_fd = -1;
+
+    if (!num_iovs || !ents)
+	return 0;
+
+    udmabuf = open("/dev/udmabuf", O_RDWR);
+    if (udmabuf < 0) {
+        warn_report("%s: cannot open /dev/udmabuf %d, error: %s\n",
+			__func__, udmabuf, strerror(errno));
+        return 0;
+    }
+
+    list = g_malloc0(sizeof(struct udmabuf_create_list) +
+                     sizeof(struct udmabuf_create_item) * num_iovs);
+
+    for (i = 0; i < num_iovs; i++) {
+        uint64_t a = (uint64_t)le64_to_cpu(ents[i].addr);
+        uint32_t l = le32_to_cpu(ents[i].length);
+        hwaddr xlat, len = l;
+
+        rcu_read_lock();
+        fv = address_space_to_flatview(&address_space_memory);
+        mr = flatview_translate(fv, a, &xlat, &len, true,
+                                MEMTXATTRS_UNSPECIFIED);
+        assert(mr);
+        if (!mr->ram_block && !mr->alias) {
+           rcu_read_unlock();
+	   goto out_dmabuf;
+	}
+        memfd = memory_region_get_fd(mr);
+        rcu_read_unlock();
+
+        list->list[i].memfd  = memfd;
+        list->list[i].offset = xlat;
+        list->list[i].size   = len;
+    }
+    list->count = num_iovs;
+    list->flags = UDMABUF_FLAGS_CLOEXEC;
+
+    dmabuf_fd = ioctl(udmabuf, UDMABUF_CREATE_LIST, list);
+    if (dmabuf_fd < 0) {
+        warn_report("%s: udmabuf_create_list: %s", __func__,
+                    strerror(errno));
+        close(udmabuf);
+    }
+    else
+      fprintf(stderr, "%s dmabuf created %d\n", __func__, dmabuf_fd);
+out_dmabuf:
+    g_free(list);
+    return dmabuf_fd;
+}
+
 int virtio_gpu_create_mapping_iov(VirtIOGPU *g,
                                   struct virtio_gpu_resource_attach_backing *ab,
                                   struct virtio_gpu_ctrl_command *cmd,
-                                  uint64_t **addr, struct iovec **iov)
+                                  uint64_t **addr, struct iovec **iov,
+				  int *dmabuf_fd)
 {
     struct virtio_gpu_mem_entry *ents;
     size_t esize, s;
@@ -784,6 +850,14 @@ int virtio_gpu_create_mapping_iov(VirtIOGPU *g,
             return -1;
         }
     }
+
+    if (dmabuf_fd)
+#ifdef CONFIG_OPENGL_UDMABUF
+      *dmabuf_fd = virtio_gpu_create_dmabuf(ents, ab->nr_entries);
+#else
+      *dmabuf_fd = -1;
+#endif
+
     g_free(ents);
     return 0;
 }
@@ -837,13 +911,14 @@ virtio_gpu_resource_attach_backing(VirtIOGPU *g,
         return;
     }
 
-    ret = virtio_gpu_create_mapping_iov(g, &ab, cmd, &res->addrs, &res->iov);
+    ret = virtio_gpu_create_mapping_iov(g, &ab, cmd, &res->addrs, &res->iov, NULL);
     if (ret != 0) {
         cmd->error = VIRTIO_GPU_RESP_ERR_UNSPEC;
         return;
     }
 
     res->iov_cnt = ab.nr_entries;
+
 }
 
 static void
@@ -865,6 +940,7 @@ virtio_gpu_resource_detach_backing(VirtIOGPU *g,
         return;
     }
     virtio_gpu_cleanup_mapping(g, res);
+
 }
 
 static void virtio_gpu_simple_process_cmd(VirtIOGPU *g,
