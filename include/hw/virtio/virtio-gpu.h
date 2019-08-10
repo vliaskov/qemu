@@ -111,6 +111,7 @@ typedef struct VirtIOGPU {
     struct virtio_gpu_config virtio_config;
 
     bool use_virgl_renderer;
+    int udmabuf;
     bool renderer_inited;
     int renderer_blocked;
     bool renderer_reset;
@@ -163,10 +164,13 @@ void virtio_gpu_get_edid(VirtIOGPU *g,
 int virtio_gpu_create_mapping_iov(VirtIOGPU *g,
                                   struct virtio_gpu_resource_attach_backing *ab,
                                   struct virtio_gpu_ctrl_command *cmd,
-                                  uint64_t **addr, struct iovec **iov);
+                                  uint64_t **addr, struct iovec **iov,
+                                  int *dmabuf_fd);
 void virtio_gpu_cleanup_mapping_iov(VirtIOGPU *g,
                                     struct iovec *iov, uint32_t count);
 void virtio_gpu_process_cmdq(VirtIOGPU *g);
+int virtio_gpu_create_dmabuf(VirtIOGPU *g, struct virtio_gpu_mem_entry *ents,
+				int num_iovs);
 
 /* virtio-gpu-3d.c */
 void virtio_gpu_virgl_process_cmd(VirtIOGPU *g,
