@@ -280,20 +280,23 @@ virgl_cmd_transfer_from_host_3d(VirtIOGPU *g,
                                      tf3d.offset, NULL, 0);
 }
 
-
 static void virgl_resource_attach_backing(VirtIOGPU *g,
                                           struct virtio_gpu_ctrl_command *cmd)
 {
     struct virtio_gpu_resource_attach_backing att_rb;
     struct iovec *res_iovs;
     int ret;
+    int dmabuf_fd = -1;
 
     VIRTIO_GPU_FILL_CMD(att_rb);
     trace_virtio_gpu_cmd_res_back_attach(att_rb.resource_id);
 
-    ret = virtio_gpu_create_mapping_iov(g, &att_rb, cmd, NULL, &res_iovs);
+    ret = virtio_gpu_create_mapping_iov(g, &att_rb, cmd, NULL, &res_iovs,
+                                        &dmabuf_fd);
     if (ret != 0) {
         cmd->error = VIRTIO_GPU_RESP_ERR_UNSPEC;
+        if (dmabuf_fd >= 0)
+           close(dmabuf_fd);
         return;
     }
 
@@ -302,6 +305,19 @@ static void virgl_resource_attach_backing(VirtIOGPU *g,
 
     if (ret != 0)
         virtio_gpu_cleanup_mapping_iov(g, res_iovs, att_rb.nr_entries);
+
+#ifdef CONFIG_OPENGL_UDMABUF
+    if (dmabuf_fd >= 0)
+    ret = virgl_renderer_resource_attach_dmabuf(att_rb.resource_id, dmabuf_fd);
+    if (ret) {
+       qemu_log_mask(LOG_GUEST_ERROR,
+                     "resource %d failed to attach dmabuf, closing %d\n",
+                     att_rb.resource_id, dmabuf_fd);
+       close(dmabuf_fd);
+    }
+#endif
+
+
 }
 
 static void virgl_resource_detach_backing(VirtIOGPU *g,
@@ -317,6 +333,7 @@ static void virgl_resource_detach_backing(VirtIOGPU *g,
     virgl_renderer_resource_detach_iov(detach_rb.resource_id,
                                        &res_iovs,
                                        &num_iovs);
+
     if (res_iovs == NULL || num_iovs == 0) {
         return;
     }
