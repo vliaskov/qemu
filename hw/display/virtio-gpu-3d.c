@@ -17,6 +17,10 @@
 #include "trace.h"
 #include "hw/virtio/virtio.h"
 #include "hw/virtio/virtio-gpu.h"
+#include "cpu.h"
+#include "exec/address-spaces.h"
+#include "exec/ram_addr.h"
+#include <linux/udmabuf.h>
 
 #ifdef CONFIG_VIRGL
 
@@ -280,28 +284,78 @@ virgl_cmd_transfer_from_host_3d(VirtIOGPU *g,
                                      tf3d.offset, NULL, 0);
 }
 
-
 static void virgl_resource_attach_backing(VirtIOGPU *g,
                                           struct virtio_gpu_ctrl_command *cmd)
 {
     struct virtio_gpu_resource_attach_backing att_rb;
+    struct virtio_gpu_mem_entry *ents = NULL;
     struct iovec *res_iovs;
     int ret;
+    size_t esize;
 
     VIRTIO_GPU_FILL_CMD(att_rb);
     trace_virtio_gpu_cmd_res_back_attach(att_rb.resource_id);
 
-    ret = virtio_gpu_create_mapping_iov(g, &att_rb, cmd, NULL, &res_iovs);
+    esize = sizeof(*ents) * att_rb.nr_entries;
+    ents = g_malloc(esize);
+
+    ret = virtio_gpu_create_mapping_iov(g, &att_rb, cmd, NULL, &res_iovs,
+                                        ents);
     if (ret != 0) {
         cmd->error = VIRTIO_GPU_RESP_ERR_UNSPEC;
         return;
     }
 
+#ifndef CONFIG_VIRGL_UDMABUF
     ret = virgl_renderer_resource_attach_iov(att_rb.resource_id,
                                              res_iovs, att_rb.nr_entries);
+#else
+    struct udmabuf_create_list *list;
+    MemoryRegion *mr;
+    FlatView *fv;
+    int memfd, i;
+    bool memfd_backed = true;
 
+    list = g_malloc0(sizeof(struct udmabuf_create_list) +
+                     sizeof(struct udmabuf_create_item) * att_rb.nr_entries);
+
+    for (i = 0; i < att_rb.nr_entries; i++) {
+        uint64_t a = (uint64_t)le64_to_cpu(ents[i].addr);
+        uint32_t l = le32_to_cpu(ents[i].length);
+        hwaddr xlat, len = l;
+
+        rcu_read_lock();
+        fv = address_space_to_flatview(&address_space_memory);
+        mr = flatview_translate(fv, a, &xlat, &len, true,
+                                MEMTXATTRS_UNSPECIFIED);
+        assert(mr);
+        memfd = memory_region_get_fd(mr);
+        rcu_read_unlock();
+        if (memfd < 0) {
+           memfd_backed = false;
+           break;
+        }
+
+        list->list[i].memfd  = memfd;
+        list->list[i].offset = xlat;
+        list->list[i].size   = len;
+    }
+
+    if (memfd_backed) {
+       list->count = att_rb.nr_entries;
+       list->flags = UDMABUF_FLAGS_CLOEXEC;
+       ret = virgl_renderer_resource_attach_iov_v2(att_rb.resource_id,
+                                                   res_iovs, list);
+    }
+    else
+       ret = virgl_renderer_resource_attach_iov(att_rb.resource_id,
+                                             res_iovs, att_rb.nr_entries);
+    g_free(list);
+#endif
     if (ret != 0)
         virtio_gpu_cleanup_mapping_iov(g, res_iovs, att_rb.nr_entries);
+
+    g_free(ents);
 }
 
 static void virgl_resource_detach_backing(VirtIOGPU *g,
@@ -317,6 +371,7 @@ static void virgl_resource_detach_backing(VirtIOGPU *g,
     virgl_renderer_resource_detach_iov(detach_rb.resource_id,
                                        &res_iovs,
                                        &num_iovs);
+
     if (res_iovs == NULL || num_iovs == 0) {
         return;
     }
