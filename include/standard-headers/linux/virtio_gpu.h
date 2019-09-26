@@ -76,6 +76,11 @@
  *
  * FIXME: how handle memory properties?
  *   Use VIRTIO_GPU_F_HOSTMEM_{COHERENT,...} ?
+ *
+ * FIXME: separate VIRTIO_GPU_F_VULKAN feature for this?
+ *   VIRTIO_GPU_CMD_RESOURCE_QUERY
+ *   VIRTIO_GPU_RESP_OK_RESOURCE_INFO
+ *   I suspect for VIRTIO_GPU_F_VULKAN we will need more ...
  */
 #define VIRTIO_GPU_F_HOSTMEM             4
 
@@ -99,6 +104,7 @@ enum virtio_gpu_ctrl_type {
 	VIRTIO_GPU_CMD_SET_SCANOUT_BLOB,
 	VIRTIO_GPU_CMD_RESOURCE_MAP_BLOB,
 	VIRTIO_GPU_CMD_RESOURCE_UNMAP_BLOB,
+	VIRTIO_GPU_CMD_RESOURCE_QUERY,
 
 	/* 3d commands */
 	VIRTIO_GPU_CMD_CTX_CREATE = 0x0200,
@@ -121,6 +127,7 @@ enum virtio_gpu_ctrl_type {
 	VIRTIO_GPU_RESP_OK_CAPSET_INFO,
 	VIRTIO_GPU_RESP_OK_CAPSET,
 	VIRTIO_GPU_RESP_OK_EDID,
+	VIRTIO_GPU_RESP_OK_RESOURCE_INFO,
 
 	/* error responses */
 	VIRTIO_GPU_RESP_ERR_UNSPEC = 0x1200,
@@ -213,6 +220,15 @@ struct virtio_gpu_resource_unmap_blob {
 	struct virtio_gpu_ctrl_hdr hdr;
 	uint32_t resource_id;
 	uint32_t padding;
+};
+
+/* VIRTIO_GPU_CMD_RESOURCE_QUERY */
+/* VIRTIO_GPU_RESP_RESOURCE_INFO */
+struct virtio_gpu_resource_message {
+	struct virtio_gpu_ctrl_hdr hdr;
+	uint32_t size;
+	uint32_t padding;
+	uint8_t   message[];
 };
 
 /* VIRTIO_GPU_CMD_SET_SCANOUT */
