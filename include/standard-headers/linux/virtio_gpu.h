@@ -67,6 +67,18 @@
  */
 #define VIRTIO_GPU_F_RESOURCE_BLOB       3
 
+/*
+ * VIRTIO_GPU_CMD_RESOURCE_MAP_BLOB
+ * VIRTIO_GPU_CMD_RESOURCE_UNMAP_BLOB
+ *
+ * FIXME: also need this?
+ *   VIRTIO_GPU_CMD_RESOURCE_SYNC_BLOB
+ *
+ * FIXME: how handle memory properties?
+ *   Use VIRTIO_GPU_F_HOSTMEM_{COHERENT,...} ?
+ */
+#define VIRTIO_GPU_F_HOSTMEM             4
+
 enum virtio_gpu_ctrl_type {
 	VIRTIO_GPU_UNDEFINED = 0,
 
@@ -85,6 +97,8 @@ enum virtio_gpu_ctrl_type {
 	VIRTIO_GPU_CMD_RESOURCE_CREATE_2D_SHARED,
 	VIRTIO_GPU_CMD_RESOURCE_CREATE_BLOB,
 	VIRTIO_GPU_CMD_SET_SCANOUT_BLOB,
+	VIRTIO_GPU_CMD_RESOURCE_MAP_BLOB,
+	VIRTIO_GPU_CMD_RESOURCE_UNMAP_BLOB,
 
 	/* 3d commands */
 	VIRTIO_GPU_CMD_CTX_CREATE = 0x0200,
@@ -179,10 +193,26 @@ struct virtio_gpu_resource_create_blob {
 	uint32_t resource_id;
 #define VIRTIO_GPU_MEMORY_TYPE_DEFAULT 1
 #define VIRTIO_GPU_MEMORY_TYPE_SHARED  2
+#define VIRTIO_GPU_MEMORY_TYPE_HOSTMEM 3
 	uint32_t memory_type;
 	uint32_t memory_flags;
 	uint32_t padding;
 	uint64_t size;
+};
+
+/* VIRTIO_GPU_CMD_RESOURCE_MAP_BLOB */
+struct virtio_gpu_resource_map_blob {
+	struct virtio_gpu_ctrl_hdr hdr;
+	uint32_t resource_id;
+	uint32_t padding;
+	uint64_t offset;
+};
+
+/* VIRTIO_GPU_CMD_RESOURCE_UNMAP_BLOB */
+struct virtio_gpu_resource_unmap_blob {
+	struct virtio_gpu_ctrl_hdr hdr;
+	uint32_t resource_id;
+	uint32_t padding;
 };
 
 /* VIRTIO_GPU_CMD_SET_SCANOUT */
