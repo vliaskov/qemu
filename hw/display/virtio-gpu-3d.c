@@ -16,12 +16,29 @@
 #include "trace.h"
 #include "hw/virtio/virtio.h"
 #include "hw/virtio/virtio-gpu.h"
+#include "cpu.h"
+#include "exec/address-spaces.h"
+#include "exec/ram_addr.h"
+#include <linux/udmabuf.h>
 
 #ifdef CONFIG_VIRGL
 
 #include <virglrenderer.h>
 
 static struct virgl_renderer_callbacks virtio_gpu_3d_cbs;
+
+static struct virtio_gpu_dmabuf_resource *
+virtio_gpu_find_dmabuf_resource(VirtIOGPU *g, uint32_t resource_id)
+{
+    struct virtio_gpu_dmabuf_resource *res;
+
+    QTAILQ_FOREACH(res, &g->dmabuflist, next) {
+        if (res->resource_id == resource_id) {
+            return res;
+        }
+    }
+    return NULL;
+}
 
 static void virgl_cmd_create_resource_2d(VirtIOGPU *g,
                                          struct virtio_gpu_ctrl_command *cmd)
@@ -286,23 +303,93 @@ static void virgl_resource_attach_backing(VirtIOGPU *g,
                                           struct virtio_gpu_ctrl_command *cmd)
 {
     struct virtio_gpu_resource_attach_backing att_rb;
+    struct virtio_gpu_dmabuf_resource *res;
     struct iovec *res_iovs;
     int ret;
+    size_t esize;
 
     VIRTIO_GPU_FILL_CMD(att_rb);
     trace_virtio_gpu_cmd_res_back_attach(att_rb.resource_id);
 
-    ret = virtio_gpu_create_mapping_iov(g, &att_rb, cmd, NULL, &res_iovs);
+    res = g_new0(struct virtio_gpu_dmabuf_resource, 1);
+    res->resource_id = att_rb.resource_id;
+    esize = sizeof(*res->ents) * att_rb.nr_entries;
+    res->nr_entries = att_rb.nr_entries;
+    res->ents = g_malloc(esize);
+    QTAILQ_INSERT_HEAD(&g->dmabuflist, res, next);
+
+    ret = virtio_gpu_create_mapping_iov(g, &att_rb, cmd, NULL, &res_iovs,
+                                        res->ents);
     if (ret != 0) {
         cmd->error = VIRTIO_GPU_RESP_ERR_UNSPEC;
+        g_free(res->ents);
+        QTAILQ_REMOVE(&g->dmabuflist, res, next);
+        g_free(res);
         return;
     }
 
     ret = virgl_renderer_resource_attach_iov(att_rb.resource_id,
                                              res_iovs, att_rb.nr_entries);
 
-    if (ret != 0)
+    if (ret != 0) {
         virtio_gpu_cleanup_mapping_iov(g, res_iovs, att_rb.nr_entries);
+        g_free(res->ents);
+        QTAILQ_REMOVE(&g->dmabuflist, res, next);
+        g_free(res);
+    }
+}
+
+static void virgl_attach_udmabuf(void *opaque, uint32_t resource_id)
+{
+    VirtIOGPU *g = opaque;
+    struct virtio_gpu_dmabuf_resource *res;
+    int memfd, i;
+    struct udmabuf_create_list *list;
+    MemoryRegion *mr;
+    FlatView *fv;
+    bool memfd_backed = true;
+
+    res = virtio_gpu_find_dmabuf_resource(g, resource_id);
+
+    if (!res) {
+        fprintf(stderr, "%s: illegal resource specified %d\n",
+                      __func__, resource_id);
+        return;
+    }
+
+    list = g_malloc0(sizeof(struct udmabuf_create_list) +
+                     sizeof(struct udmabuf_create_item) * res->nr_entries);
+
+    for (i = 0; i < res->nr_entries; i++) {
+        uint64_t a = (uint64_t)le64_to_cpu(res->ents[i].addr);
+        uint32_t l = le32_to_cpu(res->ents[i].length);
+        hwaddr xlat, len = l;
+
+        rcu_read_lock();
+        fv = address_space_to_flatview(&address_space_memory);
+        mr = flatview_translate(fv, a, &xlat, &len, true,
+                                MEMTXATTRS_UNSPECIFIED);
+        assert(mr);
+        memfd = memory_region_get_fd(mr);
+        rcu_read_unlock();
+        if (memfd < 0) {
+           memfd_backed = false;
+           break;
+        }
+
+        list->list[i].memfd  = memfd;
+        list->list[i].offset = xlat;
+        list->list[i].size   = len;
+    }
+
+    if (memfd_backed) {
+       list->count = res->nr_entries;
+       list->flags = UDMABUF_FLAGS_CLOEXEC;
+       qemu_log_mask(LOG_GUEST_ERROR, "%s: attach udmabuf for resource id %u\n",
+                      __func__, resource_id);
+       virgl_renderer_resource_attach_iov_v2(res->resource_id, list);
+    }
+    g_free(list);
 }
 
 static void virgl_resource_detach_backing(VirtIOGPU *g,
@@ -311,6 +398,7 @@ static void virgl_resource_detach_backing(VirtIOGPU *g,
     struct virtio_gpu_resource_detach_backing detach_rb;
     struct iovec *res_iovs = NULL;
     int num_iovs = 0;
+    struct virtio_gpu_dmabuf_resource *res;
 
     VIRTIO_GPU_FILL_CMD(detach_rb);
     trace_virtio_gpu_cmd_res_back_detach(detach_rb.resource_id);
@@ -322,6 +410,17 @@ static void virgl_resource_detach_backing(VirtIOGPU *g,
         return;
     }
     virtio_gpu_cleanup_mapping_iov(g, res_iovs, num_iovs);
+
+    res = virtio_gpu_find_dmabuf_resource(g, detach_rb.resource_id);
+    if (res) {
+       qemu_log_mask(LOG_GUEST_ERROR, "%s: free resources for resource id %u\n",
+                      __func__, detach_rb.resource_id);
+       if (res->ents) {
+          g_free(res->ents);
+       }
+       QTAILQ_REMOVE(&g->dmabuflist, res, next);
+       g_free(res);
+    }
 }
 
 
@@ -553,6 +652,7 @@ static struct virgl_renderer_callbacks virtio_gpu_3d_cbs = {
     .create_gl_context   = virgl_create_context,
     .destroy_gl_context  = virgl_destroy_context,
     .make_current        = virgl_make_context_current,
+    .attach_udmabuf      = virgl_attach_udmabuf,
 };
 
 static void virtio_gpu_print_stats(void *opaque)

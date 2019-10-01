@@ -167,6 +167,7 @@ typedef struct VirtIOGPU {
     QTAILQ_HEAD(, virtio_gpu_simple_resource) reslist;
     QTAILQ_HEAD(, virtio_gpu_ctrl_command) cmdq;
     QTAILQ_HEAD(, virtio_gpu_ctrl_command) fenceq;
+    QTAILQ_HEAD(, virtio_gpu_dmabuf_resource) dmabuflist;
 
     uint64_t hostmem;
 
@@ -193,6 +194,13 @@ typedef struct VhostUserGPU {
     QemuDmaBuf dmabuf[VIRTIO_GPU_MAX_SCANOUTS];
     bool backend_blocked;
 } VhostUserGPU;
+
+struct virtio_gpu_dmabuf_resource {
+    uint32_t resource_id;
+    uint32_t nr_entries;
+    struct virtio_gpu_mem_entry *ents;
+    QTAILQ_ENTRY(virtio_gpu_dmabuf_resource) next;
+};
 
 extern const GraphicHwOps virtio_gpu_ops;
 
@@ -232,7 +240,8 @@ void virtio_gpu_get_edid(VirtIOGPU *g,
 int virtio_gpu_create_mapping_iov(VirtIOGPU *g,
                                   struct virtio_gpu_resource_attach_backing *ab,
                                   struct virtio_gpu_ctrl_command *cmd,
-                                  uint64_t **addr, struct iovec **iov);
+                                  uint64_t **addr, struct iovec **iov,
+				  struct virtio_gpu_mem_entry *entries);
 void virtio_gpu_cleanup_mapping_iov(VirtIOGPU *g,
                                     struct iovec *iov, uint32_t count);
 void virtio_gpu_process_cmdq(VirtIOGPU *g);
