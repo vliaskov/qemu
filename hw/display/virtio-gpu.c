@@ -31,6 +31,11 @@
 #include "qemu/module.h"
 #include "qapi/error.h"
 #include "qemu/error-report.h"
+#include "sys/fcntl.h"
+#include "sys/ioctl.h"
+#include "cpu.h"
+#include "exec/address-spaces.h"
+#include "exec/ram_addr.h"
 
 #define VIRTIO_GPU_VM_VERSION 1
 
@@ -660,7 +665,8 @@ static void virtio_gpu_set_scanout(VirtIOGPU *g,
 int virtio_gpu_create_mapping_iov(VirtIOGPU *g,
                                   struct virtio_gpu_resource_attach_backing *ab,
                                   struct virtio_gpu_ctrl_command *cmd,
-                                  uint64_t **addr, struct iovec **iov)
+                                  uint64_t **addr, struct iovec **iov,
+				  struct virtio_gpu_mem_entry *entries)
 {
     struct virtio_gpu_mem_entry *ents;
     size_t esize, s;
@@ -674,7 +680,10 @@ int virtio_gpu_create_mapping_iov(VirtIOGPU *g,
     }
 
     esize = sizeof(*ents) * ab->nr_entries;
-    ents = g_malloc(esize);
+    if (!entries)
+       ents = g_malloc(esize);
+    else
+       ents = entries;
     s = iov_to_buf(cmd->elem.out_sg, cmd->elem.out_num,
                    sizeof(*ab), ents, esize);
     if (s != esize) {
@@ -713,7 +722,9 @@ int virtio_gpu_create_mapping_iov(VirtIOGPU *g,
             return -1;
         }
     }
-    g_free(ents);
+
+    if (!entries)
+       g_free(ents);
     return 0;
 }
 
@@ -769,7 +780,7 @@ virtio_gpu_resource_attach_backing(VirtIOGPU *g,
         return;
     }
 
-    ret = virtio_gpu_create_mapping_iov(g, &ab, cmd, &res->addrs, &res->iov);
+    ret = virtio_gpu_create_mapping_iov(g, &ab, cmd, &res->addrs, &res->iov, NULL);
     if (ret != 0) {
         cmd->error = VIRTIO_GPU_RESP_ERR_UNSPEC;
         return;
@@ -799,6 +810,7 @@ virtio_gpu_resource_detach_backing(VirtIOGPU *g,
         return;
     }
     virtio_gpu_cleanup_mapping(g, res);
+
 }
 
 static void virtio_gpu_simple_process_cmd(VirtIOGPU *g,
