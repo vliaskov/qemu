@@ -474,9 +474,36 @@ static void vfio_probe_ati_bar2_quirk(VFIOPCIDevice *vdev, int nr)
 /*
  * Older ATI/AMD cards like the X550 have a similar window to that above.
  * I/O port BAR1 provides a window to a mirror of PCI config space located
- * in BAR2 at offset 0xf00.  We don't care to support such older cards, but
- * note it for future reference.
+ * in BAR2 at offset 0xf00.
  */
+
+static void vfio_probe_ati_bar1_quirk(VFIOPCIDevice *vdev, int nr)
+{
+    VFIOQuirk *quirk;
+    VFIOConfigMirrorQuirk *mirror;
+
+    if (!vfio_pci_is(vdev, PCI_VENDOR_ID_ATI, PCI_ANY_ID) ||
+        !vdev->vga || nr != 1) {
+        return;
+    }
+
+    quirk = vfio_quirk_alloc(1);
+    mirror = quirk->data = g_malloc0(sizeof(*mirror));
+    mirror->mem = quirk->mem;
+    mirror->vdev = vdev;
+    mirror->offset = 0xf00;
+    mirror->bar = nr;
+
+    memory_region_init_io(mirror->mem, OBJECT(vdev),
+                          &vfio_generic_mirror_quirk, mirror,
+                          "vfio-ati-bar1-f00-quirk", PCI_CONFIG_SPACE_SIZE);
+    memory_region_add_subregion_overlap(vdev->bars[nr].region.mem,
+                                        mirror->offset, mirror->mem, 1);
+
+    QLIST_INSERT_HEAD(&vdev->bars[nr].quirks, quirk, next);
+
+    trace_vfio_quirk_ati_bar2_probe(vdev->vbasedev.name);
+}
 
 /*
  * Nvidia has several different methods to get to config space, the
@@ -1210,6 +1237,7 @@ void vfio_bar_quirk_setup(VFIOPCIDevice *vdev, int nr)
 {
     vfio_probe_ati_bar4_quirk(vdev, nr);
     vfio_probe_ati_bar2_quirk(vdev, nr);
+    vfio_probe_ati_bar1_quirk(vdev, nr);
     vfio_probe_nvidia_bar5_quirk(vdev, nr);
     vfio_probe_nvidia_bar0_quirk(vdev, nr);
     vfio_probe_rtl8168_bar2_quirk(vdev, nr);
