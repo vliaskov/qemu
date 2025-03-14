@@ -179,7 +179,7 @@ static bool do_vsetvl(DisasContext *s, int rd, int rs1, TCGv s2)
         s1 = get_gpr(s, rs1, EXT_ZERO);
     }
 
-    gen_helper_vsetvl(dst, tcg_env, s1, s2, rd == 0 && rs1 == 0);
+    gen_helper_vsetvl(dst, tcg_env, s1, s2, int (rd == 0 && rs1 == 0));
     gen_set_gpr(s, rd, dst);
     finalize_rvv_inst(s);
 
