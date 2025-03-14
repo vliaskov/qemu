@@ -1489,7 +1489,7 @@ void tcg_func_start(TCGContext *s)
     s->nb_temps = s->nb_globals;
 
     /* No temps have been previously allocated for size or locality.  */
-    tcg_temp_ebb_reset_freed(s);
+    memset(s->free_temps, 0, sizeof(s->free_temps));
 
     /* No constant temps have been previously allocated. */
     for (int i = 0; i < TCG_TYPE_COUNT; ++i) {
@@ -6119,9 +6119,6 @@ int tcg_gen_code(TCGContext *s, TranslationBlock *tb, uint64_t pc_start)
         assert(!error);
     }
 #endif
-
-    /* Do not reuse any EBB that may be allocated within the TB. */
-    tcg_temp_ebb_reset_freed(s);
 
     tcg_optimize(s);
 
