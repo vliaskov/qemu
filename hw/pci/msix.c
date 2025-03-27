@@ -309,7 +309,7 @@ static void msix_mask_all(struct PCIDevice *dev, unsigned nentries)
  * also means a programming error, except device assignment, which can check
  * if a real HW is broken.
  */
-int msix_init(struct PCIDevice *dev, unsigned short nentries,
+int msix_init(struct PCIDevice *dev, uint32_t nentries,
               MemoryRegion *table_bar, uint8_t table_bar_nr,
               unsigned table_offset, MemoryRegion *pba_bar,
               uint8_t pba_bar_nr, unsigned pba_offset, uint8_t cap_pos,
@@ -383,7 +383,7 @@ int msix_init(struct PCIDevice *dev, unsigned short nentries,
     return 0;
 }
 
-int msix_init_exclusive_bar(PCIDevice *dev, unsigned short nentries,
+int msix_init_exclusive_bar(PCIDevice *dev, uint32_t nentries,
                             uint8_t bar_nr, Error **errp)
 {
     int ret;
